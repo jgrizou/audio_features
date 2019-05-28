@@ -4,6 +4,7 @@ import os
 import inspect
 HERE_PATH = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 
+import random
 import librosa
 import numpy as np
 
@@ -19,83 +20,63 @@ sys.path.append(openvault_path)
 from openvault.continuous import ContinuousLearner
 
 from openvault_tools import AudioVaultPlayer
-
+from openvault_tools import AudioVaultSignal
 
 if __name__ == '__main__':
 
-    type1_folder = os.path.join(HERE_PATH, 'samples', 'web_recordings', 'yellow')
-    type1_files = tools.list_files(type1_folder, ['*.mp3'])
+    tools.set_seed(10)
 
-    type2_folder = os.path.join(HERE_PATH, 'samples', 'web_recordings', 'dog')
-    type2_files = tools.list_files(type2_folder, ['*.mp3'])
+    mp3_root_folder = os.path.join(HERE_PATH, 'samples', 'web_recordings')
+    mp3_folders = tools.list_folders(mp3_root_folder)
 
-    N_HYPOTHESIS = 10
-    player = AudioVaultPlayer(N_HYPOTHESIS, type1_files, type2_files)
-    learner = ContinuousLearner(N_HYPOTHESIS)
+    for i in range(10):
 
+        type1_folder = random.choice(mp3_folders)
 
-    for j in range(10):
-        # flash_pattern = learner.get_next_flash_pattern(planning_method='even_random')
-        flash_pattern = learner.get_next_flash_pattern(planning_method='even_uncertainty')
-
-        feedback_mp3 = player.get_feedback_mp3(flash_pattern)
-
-        print(feedback_mp3)
-
-        # learner.update(flash_pattern, feedback_signal)
-        # if learner.is_solved():
-        #     pass
+        type2_folder = random.choice(mp3_folders)
+        while type2_folder == type1_folder:
+            type2_folder = random.choice(mp3_folders)
 
 
-    audioembed = embedding_tools.AudioEmbedder()
+        type1_files = tools.list_files(type1_folder, ['*.mp3'])
+        type2_files = tools.list_files(type2_folder, ['*.mp3'])
 
-    def compute_embedding(audio_path):
-        y, sample_rate = librosa.load(audio_path)
-        y, _ = librosa.effects.trim(y)
-        y = audio_tools.repeat_audio_to_duration(y, 3, sample_rate)
-        y = audio_tools.frame_audio(y, 1, 0.1, sample_rate)
+        N_HYPOTHESIS = 10
+        player = AudioVaultPlayer(N_HYPOTHESIS, type1_files, type2_files)
+        player_signal = AudioVaultSignal()
+        learner = ContinuousLearner(N_HYPOTHESIS, proba_decision_threshold=0.95, proba_assigned_to_label_valid=0.95)
 
-        return audioembed.compute_embeddings_from_array(y)
+        solved = []
+        correct = []
+        for j in range(50):
+            # flash_pattern = learner.get_next_flash_pattern(planning_method='even_random')
+            flash_pattern = learner.get_next_flash_pattern(planning_method='even_uncertainty')
 
-    X = []
-    y = []
-    y_perm = []
-    y_perm2 = []
+            feedback_mp3 = player.get_feedback_mp3(flash_pattern)
+            # print(feedback_mp3)
 
-    tools.set_seed(1)
+            player_signal.add_feedback_mp3(feedback_mp3)
 
-    random.shuffle(type1_files)
-    random.shuffle(type2_files)
+            feedback_signals, results = player_signal.get_feedback_signals()
 
-    for t1 in type1_files[:10]:
-        print(t1)
-        E = compute_embedding(t1)
-        X.extend(E)
-        y.extend([0 for _ in E])
+            learner.signal_history = feedback_signals[:-1]
+            learner.update(flash_pattern, feedback_signals[-1])
 
-        y_random = np.random.randint(2)
-        y_perm.extend([y_random for _ in E])
+            #
+            valid = False
+            solved.append(learner.is_solved())
+            if learner.is_solved():
+                true_i_target = player.target_index
+                found_i_target = learner.get_solution_index()
+                print('{} - {} in {} steps'.format(true_i_target, found_i_target, j+1))
+                valid = true_i_target == found_i_target
 
-        y_random = np.random.randint(2)
-        y_perm2.extend([y_random for _ in E])
+                # change target and propagate label for next target
+                learner.propagate_labels_from_hypothesis(found_i_target)
+                player.update_target_index()
 
-    for t2 in type2_files[:10]:
-        print(t2)
-        E = compute_embedding(t2)
-        X.extend(E)
-        y.extend([1 for _ in E])
+            correct.append(valid)
 
-        y_random = np.random.randint(2)
-        y_perm.extend([y_random for _ in E])
-
-        y_random = np.random.randint(2)
-        y_perm2.extend([y_random for _ in E])
-
-
-    X = np.array(X)
-    y = np.array(y)
-    y_perm = np.array(y_perm)
-    y_perm2 = np.array(y_perm2)
 
     import matplotlib
     matplotlib.use("TkAgg")
@@ -104,49 +85,23 @@ if __name__ == '__main__':
 
     plt.close('all')
 
+    plt.figure()
+    plt.plot(learner.hypothesis_probability_history)
 
-    import umap
+    plt.figure()
+    plt.plot(solved)
+    plt.plot(correct)
 
-    X_umap = X
-    X_embedded = umap.UMAP( n_neighbors=150,
-                            n_components=2,
-                            min_dist=0.1,
-                            metric='cosine').fit_transform(X_umap)
+    X_scatter = np.array(feedback_signals)
+    X_scatter_emb = np.array(results['mapped_embeddings_from_umap'])
 
-    plt.figure(figsize=(15,5))
-    ax = plt.subplot(131)
-    plt.scatter(X_embedded[:,0], X_embedded[:,1], c=y)
+    plt.figure(figsize=(15, 6))
+    for i in range(10):
+        ax = plt.subplot(2, 5, i+1)
+        plt.scatter(X_scatter[:,0], X_scatter[:,1], c=learner.hypothesis_labels[i])
+        if i == player.target_index:
+            plt.title('*')
 
-    ax = plt.subplot(132)
-    plt.scatter(X_embedded[:,0], X_embedded[:,1], c=y_perm)
-
-    ax = plt.subplot(133)
-    plt.scatter(X_embedded[:,0], X_embedded[:,1], c=y_perm2)
-
-    ##
-
-    # from scipy.spatial.distance import cdist
-    #
-    # metrics = ['euclidean', 'cosine', 'cityblock', 'seuclidean', 'correlation']
-    # metrics = ['cosine']
-    # for metric in metrics:
-    #     Y = cdist(X, X, metric)
-    #     fig, ax = plt.subplots()
-    #     im = ax.imshow(Y)
-    #     plt.title(metric)
-
-    ##
-
-    from sklearn.svm import SVC
-
-    from sklearn.model_selection import cross_validate
-
-    clf = SVC(gamma='auto')
-    cv_results = cross_validate(clf, X_embedded, y, cv=3)
-    print(cv_results['test_score'])
-
-    cv_results = cross_validate(clf, X_embedded, y_perm, cv=3)
-    print(cv_results['test_score'])
-
-    cv_results = cross_validate(clf, X_embedded, y_perm2, cv=3)
-    print(cv_results['test_score'])
+    plt.figure(figsize=(6, 6))
+    plt.scatter(X_scatter_emb[:,0], X_scatter_emb[:,1], c='blue')
+    plt.scatter(X_scatter[:,0], X_scatter[:,1], c='red')

@@ -30,3 +30,8 @@ def list_files(path='.', patterns=['*'], min_depth=0, max_depth=float('inf')):
                     if fnmatch.fnmatch(filename, pattern):
                         found_files.append(filepath)
     return found_files
+
+
+def list_folders(path='.'):
+    paths = [os.path.abspath(os.path.normpath(os.path.join(path, x))) for x in os.listdir(path)]
+    return [path for path in paths if os.path.isdir(path)]
