@@ -29,7 +29,7 @@ if __name__ == '__main__':
     mp3_root_folder = os.path.join(HERE_PATH, 'samples', 'web_recordings')
     mp3_folders = tools.list_folders(mp3_root_folder)
 
-    for i in range(10):
+    for i in range(1):
 
         type1_folder = random.choice(mp3_folders)
 
@@ -48,12 +48,12 @@ if __name__ == '__main__':
 
         solved = []
         correct = []
-        for j in range(50):
+        for j in range(30):
             # flash_pattern = learner.get_next_flash_pattern(planning_method='even_random')
             flash_pattern = learner.get_next_flash_pattern(planning_method='even_uncertainty')
 
             feedback_mp3 = player.get_feedback_mp3(flash_pattern)
-            # print(feedback_mp3)
+            print(feedback_mp3)
 
             player_signal.add_feedback_mp3(feedback_mp3)
 

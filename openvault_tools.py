@@ -1,11 +1,22 @@
+import os
+
+# this get our current location in the file system
+import inspect
+HERE_PATH = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+
 from collections import deque
 
 import umap
 import librosa
 import numpy as np
 
-import audio_tools
-import embedding_tools
+# adding audio_features directory to path for script ot work both if called directly or imported
+import sys
+audio_features_path = os.path.join(HERE_PATH, '..')
+sys.path.append(audio_features_path)
+
+from audio_features import audio_tools
+from audio_features import embedding_tools
 
 
 class AudioVaultSignal(object):

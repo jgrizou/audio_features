@@ -35,7 +35,7 @@ class AudioEmbedder(object):
             time.sleep(1)
 
     def create_container(self):
-        self.docker_client.containers.run('codait/max-audio-embedding-generator', detach=True, auto_remove=True, ports={'5000/tcp': self.docker_port}, name=self.docker_container_name)
+        self.docker_client.containers.run('codait/max-audio-embedding-generator', detach=True, ports={'5000/tcp': self.docker_port}, name=self.docker_container_name)
 
     def is_container_started(self):
         try:
