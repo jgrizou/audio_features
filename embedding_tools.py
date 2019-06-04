@@ -4,7 +4,7 @@ import os
 import inspect
 HERE_PATH = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 
-import time
+import eventlet
 
 import json
 import requests
@@ -23,16 +23,17 @@ class AudioEmbedder(object):
     def __init__(self):
         self.docker_port = 5001
         self.docker_container_name = 'AudioEmbedder'
+        self.docker_client = docker.from_env()
 
         # check if container exists, if not create it
         try:
-            docker.from_env().containers.get(self.docker_container_name)
+            self.docker_client.containers.get(self.docker_container_name)
         except docker.errors.NotFound:
             self.create_container()
 
         # make sure container is ready
         while not self.is_container_started():
-            time.sleep(1)
+            eventlet.sleep(1)
 
     def create_container(self):
         self.docker_client.containers.run('codait/max-audio-embedding-generator', detach=True, ports={'5000/tcp': self.docker_port}, name=self.docker_container_name)
