@@ -27,7 +27,8 @@ class AudioEmbedder(object):
 
         # check if container exists, if not create it
         try:
-            self.docker_client.containers.get(self.docker_container_name)
+            audio_embeddder = self.docker_client.containers.get(self.docker_container_name)
+            audio_embeddder.start()
         except docker.errors.NotFound:
             self.create_container()
 
